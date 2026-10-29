@@ -7,7 +7,11 @@ STDLIB_MODULES: Set[str] = getattr(sys, "stdlib_module_names", set())
 
 def extract_imports(code: str) -> List[str]:
     """Extract external (non-stdlib, non-relative) top-level module names from python code."""
-    tree = ast.parse(code)
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise ValueError(f"Syntax error at line {e.lineno}: {e.msg}") from e
+
     modules: Set[str] = set()
 
     for node in ast.walk(tree):
@@ -17,7 +21,6 @@ def extract_imports(code: str) -> List[str]:
                 if top_level and top_level not in STDLIB_MODULES:
                     modules.add(top_level)
         elif isinstance(node, ast.ImportFrom):
-            # Exclude relative imports (level > 0)
             if node.level and node.level > 0:
                 continue
             if node.module:

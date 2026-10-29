@@ -1,3 +1,4 @@
+import pytest
 from app.parser import extract_imports
 
 
@@ -41,3 +42,15 @@ import aiohttp
 from boto3.session import Session
 """
     assert extract_imports(code) == ["aiohttp", "boto3", "requests"]
+
+
+def test_syntax_error_raises_value_error():
+    broken_code = """
+import requests
+def bad_function(
+    return 123
+"""
+    with pytest.raises(ValueError) as exc_info:
+        extract_imports(broken_code)
+
+    assert "line 4" in str(exc_info.value) or "line" in str(exc_info.value).lower()
