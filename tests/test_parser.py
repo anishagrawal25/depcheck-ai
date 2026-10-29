@@ -63,6 +63,44 @@ def test_to_pypi_name_mappings():
     assert to_pypi_name("yaml") == "PyYAML"
     assert to_pypi_name("bs4") == "beautifulsoup4"
     assert to_pypi_name("dotenv") == "python-dotenv"
-    # Unmapped packages remain unchanged
     assert to_pypi_name("requests") == "requests"
     assert to_pypi_name("fastapi") == "fastapi"
+
+
+def test_imports_inside_functions():
+    code = """
+def load_data():
+    import pandas as pd
+    return pd.DataFrame()
+
+async def fetch():
+    from httpx import AsyncClient
+    return AsyncClient()
+"""
+    assert extract_imports(code) == ["httpx", "pandas"]
+
+
+def test_imports_inside_try_except():
+    code = """
+try:
+    import orjson as json
+except ImportError:
+    import simplejson as json
+finally:
+    import structlog
+"""
+    assert extract_imports(code) == ["orjson", "simplejson", "structlog"]
+
+
+def test_imports_inside_if_blocks():
+    code = """
+import sys
+
+if sys.platform == "win32":
+    import win32api
+elif sys.platform == "darwin":
+    from appscript import app
+else:
+    import pyinotify
+"""
+    assert extract_imports(code) == ["appscript", "pyinotify", "win32api"]
