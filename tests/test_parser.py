@@ -1,5 +1,5 @@
 import pytest
-from app.parser import extract_imports
+from app.parser import extract_imports, to_pypi_name, IMPORT_TO_PYPI
 
 
 def test_basic_import():
@@ -53,4 +53,16 @@ def bad_function(
     with pytest.raises(ValueError) as exc_info:
         extract_imports(broken_code)
 
-    assert "line 4" in str(exc_info.value) or "line" in str(exc_info.value).lower()
+    assert "line" in str(exc_info.value).lower()
+
+
+def test_to_pypi_name_mappings():
+    assert to_pypi_name("cv2") == "opencv-python"
+    assert to_pypi_name("PIL") == "Pillow"
+    assert to_pypi_name("sklearn") == "scikit-learn"
+    assert to_pypi_name("yaml") == "PyYAML"
+    assert to_pypi_name("bs4") == "beautifulsoup4"
+    assert to_pypi_name("dotenv") == "python-dotenv"
+    # Unmapped packages remain unchanged
+    assert to_pypi_name("requests") == "requests"
+    assert to_pypi_name("fastapi") == "fastapi"

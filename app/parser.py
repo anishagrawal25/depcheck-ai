@@ -1,8 +1,33 @@
 import ast
 import sys
-from typing import List, Set
+from typing import Dict, List, Set
 
 STDLIB_MODULES: Set[str] = getattr(sys, "stdlib_module_names", set())
+
+IMPORT_TO_PYPI: Dict[str, str] = {
+    "cv2": "opencv-python",
+    "PIL": "Pillow",
+    "sklearn": "scikit-learn",
+    "yaml": "PyYAML",
+    "bs4": "beautifulsoup4",
+    "dotenv": "python-dotenv",
+    "dateutil": "python-dateutil",
+    "jose": "python-jose",
+    "magic": "python-magic",
+    "multipart": "python-multipart",
+    "git": "GitPython",
+    "serial": "pyserial",
+    "jwt": "PyJWT",
+    "Bio": "biopython",
+    "Crypto": "pycryptodome",
+    "OpenSSL": "pyOpenSSL",
+    "socketio": "python-socketio",
+}
+
+
+def to_pypi_name(import_name: str) -> str:
+    """Map top-level Python import name to canonical PyPI package name."""
+    return IMPORT_TO_PYPI.get(import_name, import_name)
 
 
 def extract_imports(code: str) -> List[str]:
