@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 class PackageSignals(BaseModel):
     name: str
-    exists: bool
+    exists: Optional[bool] = None
     age_days: Optional[int] = None
     release_count: Optional[int] = None
     has_repo: Optional[bool] = None

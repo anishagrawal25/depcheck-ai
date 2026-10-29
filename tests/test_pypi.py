@@ -1,6 +1,15 @@
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
-from app.checks.pypi import get_package_signals
+import pytest
+import requests
+from app.checks.pypi import get_package_signals, clear_cache
+
+
+@pytest.fixture(autouse=True)
+def run_before_each_test():
+    clear_cache()
+    yield
+    clear_cache()
 
 
 @patch("requests.get")
@@ -104,3 +113,38 @@ def test_package_no_repo(mock_get):
 
     signals = get_package_signals("my-pkg")
     assert signals.has_repo is False
+
+
+@patch("requests.get")
+def test_package_timeout_handling(mock_get):
+    mock_get.side_effect = requests.Timeout("Connection timed out")
+
+    signals = get_package_signals("timeout-pkg")
+    assert signals.name == "timeout-pkg"
+    assert signals.exists is None  # Unknown state, didn't crash
+
+
+@patch("requests.get")
+def test_package_network_error_handling(mock_get):
+    mock_get.side_effect = requests.ConnectionError("Failed to resolve host")
+
+    signals = get_package_signals("network-error-pkg")
+    assert signals.name == "network-error-pkg"
+    assert signals.exists is None  # Unknown state, didn't crash
+
+
+@patch("requests.get")
+def test_package_caching(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {"name": "cached-pkg"},
+        "releases": {},
+    }
+    mock_get.return_value = mock_response
+
+    sig1 = get_package_signals("cached-pkg")
+    sig2 = get_package_signals("cached-pkg")
+
+    assert sig1 == sig2
+    assert mock_get.call_count == 1

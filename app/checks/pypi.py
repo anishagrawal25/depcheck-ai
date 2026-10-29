@@ -1,7 +1,15 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional
 import requests
+from app.config import REQUEST_TIMEOUT
 from app.schemas import PackageSignals
+
+_CACHE: Dict[str, PackageSignals] = {}
+
+
+def clear_cache() -> None:
+    """Clear the in-memory package signals cache."""
+    _CACHE.clear()
 
 
 def _check_has_repo(info: dict) -> bool:
@@ -25,15 +33,33 @@ def _check_has_repo(info: dict) -> bool:
 
 
 def get_package_signals(name: str) -> PackageSignals:
-    """Fetch package signals from PyPI JSON API, including age_days, release_count, and has_repo."""
+    """Fetch package signals from PyPI JSON API with timeout, caching, and error handling."""
+    normalized_name = name.strip().lower()
+    if normalized_name in _CACHE:
+        return _CACHE[normalized_name]
+
     url = f"https://pypi.org/pypi/{name}/json"
-    response = requests.get(url)
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException:
+        # Return a clear unknown state (exists=None), not a crash
+        signals = PackageSignals(name=name, exists=None)
+        _CACHE[normalized_name] = signals
+        return signals
 
     if response.status_code == 404:
-        return PackageSignals(name=name, exists=False)
+        signals = PackageSignals(name=name, exists=False)
+        _CACHE[normalized_name] = signals
+        return signals
 
     if response.status_code == 200:
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            signals = PackageSignals(name=name, exists=None)
+            _CACHE[normalized_name] = signals
+            return signals
+
         info = data.get("info", {})
         releases = data.get("releases", {})
         release_count = len(releases)
@@ -60,12 +86,16 @@ def get_package_signals(name: str) -> PackageSignals:
             now = datetime.now(timezone.utc)
             age_days = max(0, (now - earliest_upload).days)
 
-        return PackageSignals(
+        signals = PackageSignals(
             name=name,
             exists=True,
             age_days=age_days,
             release_count=release_count,
             has_repo=has_repo,
         )
+        _CACHE[normalized_name] = signals
+        return signals
 
-    return PackageSignals(name=name, exists=False)
+    signals = PackageSignals(name=name, exists=None)
+    _CACHE[normalized_name] = signals
+    return signals
