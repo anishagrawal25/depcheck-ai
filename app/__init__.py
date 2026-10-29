@@ -1,0 +1,1 @@
+"""depcheck-ai application package."""
