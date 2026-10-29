@@ -1,5 +1,5 @@
 import pytest
-from app.parser import extract_imports, to_pypi_name, IMPORT_TO_PYPI
+from app.parser import extract_imports, to_pypi_name, parse_requirements, IMPORT_TO_PYPI
 
 
 def test_basic_import():
@@ -104,3 +104,28 @@ else:
     import pyinotify
 """
     assert extract_imports(code) == ["appscript", "pyinotify", "win32api"]
+
+
+def test_parse_requirements_standard():
+    reqs = """
+# Core requirements
+requests==2.31.0
+fastapi>=0.100.0, <1.0.0
+pydantic~=2.0
+uvicorn # ASGI server
+
+-r base.txt
+--extra-index-url https://custom.pypi.org/simple
+celery[redis,auth]>=5.2.0
+pytest
+"""
+    parsed = parse_requirements(reqs)
+    assert parsed == ["celery", "fastapi", "pydantic", "pytest", "requests", "uvicorn"]
+
+
+def test_parse_requirements_empty_and_comments():
+    reqs = """
+# Just comments
+# Another comment
+"""
+    assert parse_requirements(reqs) == []

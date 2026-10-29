@@ -1,4 +1,5 @@
 import ast
+import re
 import sys
 from typing import Dict, List, Set
 
@@ -54,3 +55,29 @@ def extract_imports(code: str) -> List[str]:
                     modules.add(top_level)
 
     return sorted(list(modules))
+
+
+def parse_requirements(text: str) -> List[str]:
+    """Parse packages from requirements.txt content, handling specifiers, comments, extras, and flags."""
+    packages: Set[str] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Remove trailing comments
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        # Exclude flags like -r, -i, --extra-index-url
+        if line.startswith("-") or line.startswith("--"):
+            continue
+        # Exclude environment markers
+        line = line.split(";")[0].strip()
+        # Extract base package name ignoring extras e.g. package[extra]
+        match = re.match(r"^([a-zA-Z0-9_\.\-]+)(?:\[[^\]]*\])?", line)
+        if match:
+            pkg_name = match.group(1).strip()
+            if pkg_name:
+                packages.add(pkg_name)
+
+    return sorted(list(packages))
