@@ -50,3 +50,57 @@ def test_package_age_and_release_count(mock_get):
     assert signals.release_count == 2
     assert signals.age_days is not None
     assert 119 <= signals.age_days <= 121
+
+
+@patch("requests.get")
+def test_package_has_repo_github(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "name": "my-pkg",
+            "home_page": "https://github.com/my-org/my-pkg",
+            "project_urls": None,
+        },
+        "releases": {},
+    }
+    mock_get.return_value = mock_response
+
+    signals = get_package_signals("my-pkg")
+    assert signals.has_repo is True
+
+
+@patch("requests.get")
+def test_package_has_repo_gitlab_project_urls(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "name": "my-pkg",
+            "home_page": "https://mypkg.org",
+            "project_urls": {"Repository": "https://gitlab.com/group/repo"},
+        },
+        "releases": {},
+    }
+    mock_get.return_value = mock_response
+
+    signals = get_package_signals("my-pkg")
+    assert signals.has_repo is True
+
+
+@patch("requests.get")
+def test_package_no_repo(mock_get):
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {
+            "name": "my-pkg",
+            "home_page": "https://example.com",
+            "project_urls": {"Docs": "https://docs.example.com"},
+        },
+        "releases": {},
+    }
+    mock_get.return_value = mock_response
+
+    signals = get_package_signals("my-pkg")
+    assert signals.has_repo is False
