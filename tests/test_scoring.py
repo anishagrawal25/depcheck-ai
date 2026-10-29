@@ -49,3 +49,37 @@ def test_score_package_older_package_clean():
     assert finding.verdict == "ok"
     assert finding.risk_score == 0.0
     assert len(finding.reasons) == 0
+
+
+def test_score_package_suspicious_typosquat_and_no_repo():
+    # Typosquat (0.4) + No repo (0.2) = 0.6 >= 0.5 -> suspicious
+    signals = PackageSignals(
+        name="reqeusts",
+        exists=True,
+        age_days=100,
+        release_count=5,
+        has_repo=False,
+    )
+    finding = score_package(signals, similar=["requests"])
+
+    assert finding.verdict == "suspicious"
+    assert finding.risk_score == 0.6
+    assert finding.suggested_fix == "Did you mean 'requests'?"
+    assert any("requests" in r for r in finding.reasons)
+    assert any("No source repository" in r for r in finding.reasons)
+
+
+def test_score_package_low_releases_and_young_age():
+    # Releases < 3 (0.2) + Age < 30 (0.2) + No repo (0.2) = 0.6 >= 0.5 -> suspicious
+    signals = PackageSignals(
+        name="shady-pkg",
+        exists=True,
+        age_days=5,
+        release_count=1,
+        has_repo=False,
+    )
+    finding = score_package(signals, similar=[])
+
+    assert finding.verdict == "suspicious"
+    assert finding.risk_score == 0.6
+    assert any("Low release count" in r for r in finding.reasons)

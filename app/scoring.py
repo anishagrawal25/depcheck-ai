@@ -29,11 +29,28 @@ def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) 
 
     risk_score = 0.0
     reasons: List[str] = []
+    suggested_fix: Optional[str] = None
 
-    # Rule: Age under 30 days adds risk
+    # Rule: Age under 30 days
     if signals.age_days is not None and signals.age_days < 30:
         risk_score += WEIGHTS["age"]
         reasons.append(f"Package is newly created ({signals.age_days} days old)")
+
+    # Rule: Release count under 3
+    if signals.release_count is not None and signals.release_count < 3:
+        risk_score += WEIGHTS["releases"]
+        reasons.append(f"Low release count ({signals.release_count} releases)")
+
+    # Rule: No repository link
+    if signals.has_repo is False:
+        risk_score += WEIGHTS["repo"]
+        reasons.append("No source repository link found in package metadata")
+
+    # Rule: Typosquat similarity to popular packages
+    if similar:
+        risk_score += WEIGHTS["typosquat"]
+        reasons.append(f"Name is very similar to popular package(s): {', '.join(similar)}")
+        suggested_fix = f"Did you mean '{similar[0]}'?"
 
     verdict = "suspicious" if risk_score >= 0.5 else "ok"
     confidence = 0.85 if signals.exists is True else 0.5
@@ -44,4 +61,5 @@ def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) 
         risk_score=min(1.0, round(risk_score, 2)),
         confidence=confidence,
         reasons=reasons,
+        suggested_fix=suggested_fix,
     )
