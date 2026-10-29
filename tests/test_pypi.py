@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 from app.checks.pypi import get_package_signals
 
@@ -6,7 +7,10 @@ from app.checks.pypi import get_package_signals
 def test_package_exists(mock_get):
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {"info": {"name": "requests"}}
+    mock_response.json.return_value = {
+        "info": {"name": "requests"},
+        "releases": {"1.0.0": []},
+    }
     mock_get.return_value = mock_response
 
     signals = get_package_signals("requests")
@@ -23,3 +27,26 @@ def test_package_does_not_exist(mock_get):
     signals = get_package_signals("nonexistent-pkg-999")
     assert signals.name == "nonexistent-pkg-999"
     assert signals.exists is False
+
+
+@patch("requests.get")
+def test_package_age_and_release_count(mock_get):
+    now = datetime.now(timezone.utc)
+    upload_1 = (now - timedelta(days=120)).isoformat()
+    upload_2 = (now - timedelta(days=30)).isoformat()
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "info": {"name": "my-pkg"},
+        "releases": {
+            "0.1.0": [{"upload_time_iso_8601": upload_1}],
+            "0.2.0": [{"upload_time_iso_8601": upload_2}],
+        },
+    }
+    mock_get.return_value = mock_response
+
+    signals = get_package_signals("my-pkg")
+    assert signals.release_count == 2
+    assert signals.age_days is not None
+    assert 119 <= signals.age_days <= 121
