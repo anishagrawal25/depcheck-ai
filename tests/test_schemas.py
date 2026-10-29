@@ -1,6 +1,7 @@
+import json
 import pytest
 from pydantic import ValidationError
-from app.schemas import PackageSignals, Finding
+from app.schemas import PackageSignals, Finding, ScanReport
 
 
 def test_package_signals_valid():
@@ -84,3 +85,27 @@ def test_finding_confidence_range():
             risk_score=0.2,
             confidence=2.0,
         )
+
+
+def test_scan_report_serialization():
+    finding = Finding(
+        package="fake-lib",
+        verdict="hallucinated",
+        risk_score=0.95,
+        confidence=0.9,
+        reasons=["Package does not exist on PyPI"],
+    )
+    report = ScanReport(findings=[finding], scanned_imports=1)
+    json_str = report.model_dump_json()
+    parsed = json.loads(json_str)
+
+    assert parsed["scanned_imports"] == 1
+    assert len(parsed["findings"]) == 1
+    assert parsed["findings"][0]["package"] == "fake-lib"
+    assert parsed["findings"][0]["verdict"] == "hallucinated"
+    assert parsed["findings"][0]["risk_score"] == 0.95
+
+    # Round-trip deserialization
+    reconstructed = ScanReport.model_validate_json(json_str)
+    assert reconstructed.scanned_imports == 1
+    assert reconstructed.findings[0].package == "fake-lib"

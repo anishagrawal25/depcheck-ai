@@ -18,3 +18,8 @@ class Finding(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     reasons: List[str] = Field(default_factory=list)
     suggested_fix: Optional[str] = None
+
+
+class ScanReport(BaseModel):
+    findings: List[Finding] = Field(default_factory=list)
+    scanned_imports: int
