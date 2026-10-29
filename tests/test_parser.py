@@ -7,20 +7,37 @@ def test_basic_import():
 
 
 def test_nested_import():
-    code = "import os.path"
-    assert extract_imports(code) == ["os"]
+    code = "import pydantic.v1"
+    assert extract_imports(code) == ["pydantic"]
 
 
-def test_from_import():
-    code = "from urllib.parse import urlparse"
-    assert extract_imports(code) == ["urllib"]
-
-
-def test_multiple_imports():
+def test_stdlib_filtered():
     code = """
-import numpy as np
-from fastapi import FastAPI, Depends
+import os
+import sys
+from urllib.parse import urlparse
+import json
+import requests
 """
-    imports = extract_imports(code)
-    assert "numpy" in imports
-    assert "fastapi" in imports
+    assert extract_imports(code) == ["requests"]
+
+
+def test_relative_imports_filtered():
+    code = """
+from . import sibling
+from ..parent import helper
+from ...core.utils import clean
+import requests
+"""
+    assert extract_imports(code) == ["requests"]
+
+
+def test_deduped_and_sorted():
+    code = """
+import requests
+from requests import get
+import boto3
+import aiohttp
+from boto3.session import Session
+"""
+    assert extract_imports(code) == ["aiohttp", "boto3", "requests"]

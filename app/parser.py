@@ -1,18 +1,28 @@
 import ast
-from typing import List
+import sys
+from typing import List, Set
+
+STDLIB_MODULES: Set[str] = getattr(sys, "stdlib_module_names", set())
 
 
 def extract_imports(code: str) -> List[str]:
-    """Extract top-level module names from python code."""
+    """Extract external (non-stdlib, non-relative) top-level module names from python code."""
     tree = ast.parse(code)
-    modules = []
+    modules: Set[str] = set()
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 top_level = alias.name.split(".")[0]
-                modules.append(top_level)
+                if top_level and top_level not in STDLIB_MODULES:
+                    modules.add(top_level)
         elif isinstance(node, ast.ImportFrom):
+            # Exclude relative imports (level > 0)
+            if node.level and node.level > 0:
+                continue
             if node.module:
                 top_level = node.module.split(".")[0]
-                modules.append(top_level)
-    return modules
+                if top_level and top_level not in STDLIB_MODULES:
+                    modules.add(top_level)
+
+    return sorted(list(modules))
