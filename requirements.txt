@@ -5,3 +5,5 @@ requests
 python-dotenv
 pytest
 streamlit
+chromadb
+sentence-transformers
