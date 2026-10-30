@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - REQUEST_TIMEOUT=5
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+
+  ui:
+    build: .
+    command: streamlit run ui.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api
