@@ -1,11 +1,18 @@
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI
 from app.checks.pypi import get_package_signals
 from app.checks.typosquat import find_similar
 from app.parser import extract_imports, to_pypi_name
-from app.schemas import ScanReport, ScanRequest
+from app.schemas import Finding, ScanReport, ScanRequest
 from app.scoring import score_package
 
 app = FastAPI(title="depcheck-ai", version="0.1.0")
+
+
+def _inspect_package(pkg_name: str) -> Finding:
+    signals = get_package_signals(pkg_name)
+    similar = find_similar(pkg_name)
+    return score_package(signals, similar=similar)
 
 
 @app.get("/health")
@@ -17,17 +24,18 @@ def health_check():
 def scan_code(req: ScanRequest) -> ScanReport:
     raw_imports = extract_imports(req.code)
     seen_pkgs = set()
-    findings = []
+    unique_pkgs = []
 
     for imp in raw_imports:
-        pkg_name = to_pypi_name(imp)
-        if pkg_name in seen_pkgs:
-            continue
-        seen_pkgs.add(pkg_name)
+        pkg = to_pypi_name(imp)
+        if pkg not in seen_pkgs:
+            seen_pkgs.add(pkg)
+            unique_pkgs.append(pkg)
 
-        signals = get_package_signals(pkg_name)
-        similar = find_similar(pkg_name)
-        finding = score_package(signals, similar=similar)
-        findings.append(finding)
+    if not unique_pkgs:
+        return ScanReport(findings=[], scanned_imports=len(raw_imports))
+
+    with ThreadPoolExecutor() as executor:
+        findings = list(executor.map(_inspect_package, unique_pkgs))
 
     return ScanReport(findings=findings, scanned_imports=len(raw_imports))

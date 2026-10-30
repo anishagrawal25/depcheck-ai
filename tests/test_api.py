@@ -1,3 +1,4 @@
+import time
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
@@ -41,3 +42,37 @@ import totallyfakepkg
 
         fake_finding = next(f for f in findings if f["package"] == "totallyfakepkg")
         assert fake_finding["verdict"] == "hallucinated"
+
+
+def test_scan_concurrent_order_is_stable():
+    code_snippet = """
+import pkg_a
+import pkg_b
+import pkg_c
+import pkg_d
+"""
+    delays = {
+        "pkg_a": 0.06,
+        "pkg_b": 0.03,
+        "pkg_c": 0.01,
+        "pkg_d": 0.00,
+    }
+
+    def mock_signals(name: str):
+        delay = delays.get(name, 0.0)
+        time.sleep(delay)
+        return PackageSignals(
+            name=name,
+            exists=True,
+            age_days=100,
+            release_count=10,
+            has_repo=True,
+        )
+
+    with patch("app.main.get_package_signals", side_effect=mock_signals):
+        response = client.post("/scan", json={"code": code_snippet})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scanned_imports"] == 4
+        result_pkgs = [f["package"] for f in data["findings"]]
+        assert result_pkgs == ["pkg_a", "pkg_b", "pkg_c", "pkg_d"]
