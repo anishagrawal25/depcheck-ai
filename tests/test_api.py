@@ -76,3 +76,43 @@ import pkg_d
         assert data["scanned_imports"] == 4
         result_pkgs = [f["package"] for f in data["findings"]]
         assert result_pkgs == ["pkg_a", "pkg_b", "pkg_c", "pkg_d"]
+
+
+def test_scan_invalid_python_returns_400():
+    response = client.post("/scan", json={"code": "def invalid syntax :"})
+    assert response.status_code == 400
+    assert "Syntax error" in response.json()["detail"]
+
+
+def test_scan_empty_body_returns_422():
+    response = client.post("/scan", json={})
+    assert response.status_code == 422
+
+
+def test_scan_requests_and_fake_fastjsonparserx():
+    code_snippet = """
+import requests
+import fastjsonparserx
+"""
+    def mock_signals(name: str):
+        if name == "requests":
+            return PackageSignals(
+                name="requests",
+                exists=True,
+                age_days=1000,
+                release_count=50,
+                has_repo=True,
+            )
+        elif name == "fastjsonparserx":
+            return PackageSignals(name="fastjsonparserx", exists=False)
+        return PackageSignals(name=name, exists=False)
+
+    with patch("app.main.get_package_signals", side_effect=mock_signals):
+        response = client.post("/scan", json={"code": code_snippet})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scanned_imports"] == 2
+        findings = {f["package"]: f for f in data["findings"]}
+        assert findings["requests"]["verdict"] == "ok"
+        assert findings["fastjsonparserx"]["verdict"] == "hallucinated"
+        assert findings["fastjsonparserx"]["risk_score"] == 0.95

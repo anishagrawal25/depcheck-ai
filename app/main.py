@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from app.checks.pypi import get_package_signals
 from app.checks.typosquat import find_similar
 from app.parser import extract_imports, to_pypi_name
@@ -22,7 +22,11 @@ def health_check():
 
 @app.post("/scan", response_model=ScanReport)
 def scan_code(req: ScanRequest) -> ScanReport:
-    raw_imports = extract_imports(req.code)
+    try:
+        raw_imports = extract_imports(req.code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     seen_pkgs = set()
     unique_pkgs = []
 
