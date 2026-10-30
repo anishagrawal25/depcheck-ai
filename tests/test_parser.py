@@ -1,5 +1,5 @@
 import pytest
-from app.parser import extract_imports, to_pypi_name, parse_requirements, IMPORT_TO_PYPI
+from app.parser import extract_imports, to_pypi_name, parse_requirements, IMPORT_TO_PYPI, extract_api_calls
 
 
 def test_basic_import():
@@ -129,3 +129,45 @@ def test_parse_requirements_empty_and_comments():
 # Another comment
 """
     assert parse_requirements(reqs) == []
+
+
+def test_extract_api_calls_alias_resolution():
+    code = """
+import numpy as np
+arr = np.arrayy([1, 2, 3])
+"""
+    calls = extract_api_calls(code)
+    assert ("numpy", "arrayy") in calls
+
+
+def test_extract_api_calls_from_import():
+    code = """
+from requests import get
+response = get("https://example.com")
+"""
+    calls = extract_api_calls(code)
+    assert ("requests", "get") in calls
+
+
+def test_extract_api_calls_from_import_alias():
+    code = """
+from requests import get as fetch
+response = fetch("https://example.com")
+"""
+    calls = extract_api_calls(code)
+    assert ("requests", "get") in calls
+
+
+def test_extract_api_calls_mapped_pypi_name():
+    code = """
+import cv2 as cv
+img = cv.imread("test.png")
+"""
+    calls = extract_api_calls(code)
+    assert ("opencv-python", "imread") in calls
+
+
+def test_extract_api_calls_syntax_error():
+    with pytest.raises(ValueError):
+        extract_api_calls("def broken syntax :")
+
