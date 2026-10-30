@@ -7,6 +7,66 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 st.set_page_config(page_title="depcheck-ai", layout="wide")
 st.title("depcheck-ai")
 
+
+def render_results_table(findings):
+    if not findings:
+        st.info("No external imports detected.")
+        return
+
+    st.subheader("Scan Results")
+
+    rows_html = []
+    for f in findings:
+        verdict = f.get("verdict", "ok")
+        pkg = f.get("package", "")
+        risk = f.get("risk_score", 0.0)
+        reasons_list = f.get("reasons", [])
+        reasons_str = "<br>• ".join([""] + reasons_list) if reasons_list else "None"
+
+        if verdict == "ok":
+            color = "#28a745"
+            bg = "#e8f5e9"
+        elif verdict == "suspicious":
+            color = "#e65100"
+            bg = "#fff3e0"
+        else:  # hallucinated
+            color = "#c62828"
+            bg = "#ffebee"
+
+        badge = (
+            f'<span style="background-color: {bg}; color: {color}; '
+            f'padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 0.9em; '
+            f'border: 1px solid {color}40;">{verdict.upper()}</span>'
+        )
+
+        row = f"""
+        <tr style="border-bottom: 1px solid #e0e0e0;">
+            <td style="padding: 10px; font-weight: 600; font-family: monospace;">{pkg}</td>
+            <td style="padding: 10px;">{badge}</td>
+            <td style="padding: 10px; font-weight: 500;">{risk:.2f}</td>
+            <td style="padding: 10px; font-size: 0.92em; line-height: 1.4;">{reasons_str}</td>
+        </tr>
+        """
+        rows_html.append(row)
+
+    table_html = f"""
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; text-align: left;">
+        <thead>
+            <tr style="border-bottom: 2px solid #ccc; background-color: #f8f9fa;">
+                <th style="padding: 10px; font-size: 0.95em;">Package</th>
+                <th style="padding: 10px; font-size: 0.95em;">Verdict</th>
+                <th style="padding: 10px; font-size: 0.95em;">Risk Score</th>
+                <th style="padding: 10px; font-size: 0.95em;">Reasons</th>
+            </tr>
+        </thead>
+        <tbody>
+            {''.join(rows_html)}
+        </tbody>
+    </table>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
 code = st.text_area("Enter Python code to scan", height=200)
 
 if st.button("Scan"):
@@ -16,8 +76,10 @@ if st.button("Scan"):
         try:
             response = requests.post(f"{API_URL}/scan", json={"code": code}, timeout=10)
             if response.status_code == 200:
-                st.subheader("Raw JSON Output")
-                st.json(response.json())
+                data = response.json()
+                render_results_table(data.get("findings", []))
+                with st.expander("Raw JSON Output"):
+                    st.json(data)
             else:
                 st.error(f"Error {response.status_code}: {response.text}")
         except requests.RequestException as e:
