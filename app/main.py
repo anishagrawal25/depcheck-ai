@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Query
+from app.agent.graph import investigate_package
 from app.checks.osv import check_vulnerabilities
 from app.checks.pypi import get_package_signals
 from app.checks.typosquat import find_similar
@@ -24,7 +25,11 @@ def health_check():
 
 
 @app.post("/scan", response_model=ScanReport)
-def scan_code(req: ScanRequest, use_llm: bool = Query(default=False)) -> ScanReport:
+def scan_code(
+    req: ScanRequest,
+    use_llm: bool = Query(default=False),
+    mode: str = Query(default="rule"),
+) -> ScanReport:
     try:
         raw_imports = extract_imports(req.code)
     except ValueError as e:
@@ -45,7 +50,15 @@ def scan_code(req: ScanRequest, use_llm: bool = Query(default=False)) -> ScanRep
     with ThreadPoolExecutor() as executor:
         findings = list(executor.map(_inspect_package, unique_pkgs))
 
-    if use_llm:
+    if mode == "agent":
+        updated_findings = []
+        for finding in findings:
+            if finding.verdict != "ok":
+                updated_findings.append(investigate_package(finding, req.code))
+            else:
+                updated_findings.append(finding)
+        findings = updated_findings
+    elif use_llm:
         for finding in findings:
             if finding.verdict != "ok":
                 exp = explain_finding(finding, req.code)

@@ -153,3 +153,47 @@ import fastjsonparserx
             findings = {f["package"]: f for f in data["findings"]}
             assert findings["fastjsonparserx"]["reasons"] == ["LLM explanation for fake pkg"]
             assert findings["fastjsonparserx"]["suggested_fix"] == "Remove it"
+
+
+def test_scan_mode_agent_triggers_investigate_package():
+    code_snippet = """
+import requests
+import fastjsonparserx
+"""
+    def mock_signals(name: str):
+        if name == "requests":
+            return PackageSignals(name="requests", exists=True, age_days=1000, release_count=50, has_repo=True)
+        return PackageSignals(name=name, exists=False)
+
+    from app.schemas import Finding
+    investigated = Finding(
+        package="fastjsonparserx",
+        verdict="hallucinated",
+        risk_score=0.95,
+        confidence=0.95,
+        reasons=["Agent verified hallucinated package"],
+        suggested_fix="Do not import fastjsonparserx",
+    )
+
+    with patch("app.main.get_package_signals", side_effect=mock_signals):
+        with patch("app.main.investigate_package", return_value=investigated) as mock_inv:
+            response = client.post("/scan", params={"mode": "agent"}, json={"code": code_snippet})
+            assert response.status_code == 200
+            assert mock_inv.call_count == 1
+            call_finding = mock_inv.call_args[0][0]
+            assert call_finding.package == "fastjsonparserx"
+
+            data = response.json()
+            findings = {f["package"]: f for f in data["findings"]}
+            assert findings["fastjsonparserx"]["reasons"] == ["Agent verified hallucinated package"]
+            assert findings["fastjsonparserx"]["suggested_fix"] == "Do not import fastjsonparserx"
+
+
+def test_scan_mode_rule_does_not_trigger_agent():
+    code_snippet = "import fastjsonparserx"
+    with patch("app.main.get_package_signals", return_value=PackageSignals(name="fastjsonparserx", exists=False)):
+        with patch("app.main.investigate_package") as mock_inv:
+            response = client.post("/scan", params={"mode": "rule"}, json={"code": code_snippet})
+            assert response.status_code == 200
+            assert mock_inv.call_count == 0
+
