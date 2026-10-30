@@ -1,0 +1,5 @@
+{"id": "snippet_1", "code": "import requests\nimport json\n\nresp = requests.get('https://api.github.com')\nprint(resp.status_code)", "fake_packages": []}
+{"id": "snippet_2", "code": "import requests\nimport fastjsonparserx\n\ndata = fastjsonparserx.parse('{\"a\": 1}')", "fake_packages": ["fastjsonparserx"]}
+{"id": "snippet_3", "code": "import reqeusts\n\nresp = reqeusts.get('https://example.com')", "fake_packages": ["reqeusts"]}
+{"id": "snippet_4", "code": "import pydantic\nimport totallyfakelib99\n\nclient = totallyfakelib99.Client()", "fake_packages": ["totallyfakelib99"]}
+{"id": "snippet_5", "code": "import numpyy\nimport securecryptoxx\n\nx = numpyy.array([1, 2])", "fake_packages": ["numpyy", "securecryptoxx"]}
