@@ -7,3 +7,5 @@ pytest
 streamlit
 chromadb
 sentence-transformers
+langgraph
+langchain-core
