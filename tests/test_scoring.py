@@ -7,6 +7,7 @@ def test_scoring_weights_config():
     assert "releases" in WEIGHTS
     assert "repo" in WEIGHTS
     assert "typosquat" in WEIGHTS
+    assert "vulnerabilities" in WEIGHTS
     assert sum(WEIGHTS.values()) <= 1.05
 
 
@@ -83,3 +84,19 @@ def test_score_package_human_readable_reasons_all():
     assert any("low release count (1 release(s)" in r for r in finding.reasons)
     assert any("No public source repository" in r for r in finding.reasons)
     assert any("highly similar to popular package(s): requests" in r for r in finding.reasons)
+
+
+def test_score_package_with_vulnerabilities():
+    signals = PackageSignals(
+        name="vulnerable-pkg",
+        exists=True,
+        age_days=200,
+        release_count=10,
+        has_repo=True,
+    )
+    vulns = (2, ["GHSA-1234", "GHSA-5678"])
+    finding = score_package(signals, similar=[], vulnerabilities=vulns)
+
+    assert finding.risk_score == 0.05
+    assert any("2 known vulnerability/vulnerabilities" in r for r in finding.reasons)
+    assert any("GHSA-1234" in r for r in finding.reasons)

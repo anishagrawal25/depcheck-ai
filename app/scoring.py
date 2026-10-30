@@ -1,5 +1,5 @@
 """Scoring engine for package risk assessment."""
-from typing import List, Optional
+from typing import Any, List, Optional
 from app.schemas import Finding, PackageSignals
 
 WEIGHTS = {
@@ -7,11 +7,16 @@ WEIGHTS = {
     "releases": 0.2,
     "repo": 0.2,
     "typosquat": 0.4,
+    "vulnerabilities": 0.05,
 }
 
 
-def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) -> Finding:
-    """Score package risk based on registry signals and typosquat similarity."""
+def score_package(
+    signals: PackageSignals,
+    similar: Optional[List[str]] = None,
+    vulnerabilities: Optional[Any] = None,
+) -> Finding:
+    """Score package risk based on registry signals, typosquat similarity, and known vulnerabilities."""
     if similar is None:
         similar = []
 
@@ -69,6 +74,31 @@ def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) 
             f"Package name '{signals.name}' is highly similar to popular package(s): {', '.join(similar)}."
         )
         suggested_fix = f"Did you mean '{similar[0]}'?"
+
+    # Rule: Known vulnerabilities (OSV)
+    if vulnerabilities:
+        count = None
+        ids = None
+        if hasattr(vulnerabilities, "vuln_ids"):
+            val = getattr(vulnerabilities, "count", None)
+            if isinstance(val, int):
+                count = val
+            ids = getattr(vulnerabilities, "vuln_ids", None)
+
+        if count is None and isinstance(vulnerabilities, (tuple, list)):
+            if len(vulnerabilities) == 2 and isinstance(vulnerabilities[0], int):
+                count, ids = vulnerabilities[0], vulnerabilities[1]
+            else:
+                count, ids = len(vulnerabilities), list(vulnerabilities)
+        elif count is None and isinstance(vulnerabilities, int):
+            count, ids = vulnerabilities, []
+
+        if isinstance(count, int) and count > 0:
+            risk_score += WEIGHTS["vulnerabilities"]
+            ids_str = f" ({', '.join(ids[:3])})" if ids else ""
+            reasons.append(
+                f"Package '{signals.name}' has {count} known vulnerability/vulnerabilities reported in OSV{ids_str}."
+            )
 
     verdict = "suspicious" if risk_score >= 0.5 else "ok"
     confidence = 0.85

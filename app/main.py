@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException, Query
+from app.checks.osv import check_vulnerabilities
 from app.checks.pypi import get_package_signals
 from app.checks.typosquat import find_similar
 from app.llm import explain_finding
@@ -13,7 +14,8 @@ app = FastAPI(title="depcheck-ai", version="0.1.0")
 def _inspect_package(pkg_name: str) -> Finding:
     signals = get_package_signals(pkg_name)
     similar = find_similar(pkg_name)
-    return score_package(signals, similar=similar)
+    vulns = check_vulnerabilities(pkg_name)
+    return score_package(signals, similar=similar, vulnerabilities=vulns)
 
 
 @app.get("/health")
