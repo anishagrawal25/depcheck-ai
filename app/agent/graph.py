@@ -1,3 +1,4 @@
+import time
 from typing import Annotated, Any, Dict, List, Optional, Sequence, TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -5,6 +6,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from app.agent.tools import ALL_TOOLS
+from app.agent.tracing import log_agent_step
 from app.schemas import Finding
 
 TOOLS_BY_NAME = {t.name: t for t in ALL_TOOLS}
@@ -85,14 +87,30 @@ def tools_node(state: AgentState) -> Dict[str, Any]:
         call_id = call.get("id", f"call_{current_count + executed_count}")
 
         tool_fn = TOOLS_BY_NAME.get(tool_name)
+        start_time = time.time()
+        status = "success"
         if not tool_fn:
             content = f"Error: Tool '{tool_name}' not found."
+            status = "error"
         else:
             try:
                 result = tool_fn.invoke(args)
                 content = str(result)
             except Exception as e:
                 content = f"Tool execution failed for '{tool_name}': {e}"
+                status = "error"
+
+        latency = time.time() - start_time
+        try:
+            log_agent_step(
+                tool=tool_name or "unknown",
+                latency=latency,
+                status=status,
+                args=args,
+                output=content,
+            )
+        except Exception:
+            pass
 
         tool_messages.append(ToolMessage(content=content, tool_call_id=call_id, name=tool_name))
         executed_count += 1
