@@ -23,3 +23,8 @@ class Finding(BaseModel):
 class ScanReport(BaseModel):
     findings: List[Finding] = Field(default_factory=list)
     scanned_imports: int
+
+
+class ScanRequest(BaseModel):
+    code: str
+
