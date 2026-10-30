@@ -84,16 +84,37 @@ def test_explain_finding_retry_on_invalid_json():
         assert mock_gen.call_count == 2
 
 
-def test_explain_finding_retry_fails():
+def test_explain_finding_fallback_on_invalid_json_twice():
     finding = Finding(
         package="reqeusts",
         verdict="suspicious",
         risk_score=0.6,
         confidence=0.85,
-        reasons=["Name is very similar to requests"],
+        reasons=["Package name is very similar to popular package: requests"],
+        suggested_fix="Did you mean 'requests'?",
     )
     code = "import reqeusts"
 
-    with patch("app.llm.generate", return_value="Still not JSON"):
-        with pytest.raises(ValueError, match="Failed to produce valid LLMExplanation"):
-            explain_finding(finding, code)
+    with patch("app.llm.generate", return_value="Never JSON"):
+        result = explain_finding(finding, code)
+        assert isinstance(result, LLMExplanation)
+        assert "Package name is very similar to popular package: requests" in result.explanation
+        assert result.suggested_fix == "Did you mean 'requests'?"
+
+
+def test_explain_finding_fallback_on_failing_mock():
+    finding = Finding(
+        package="totallyfake",
+        verdict="hallucinated",
+        risk_score=0.95,
+        confidence=0.95,
+        reasons=["Package 'totallyfake' does not exist on PyPI registry."],
+        suggested_fix="Check spelling or remove",
+    )
+    code = "import totallyfake"
+
+    with patch("app.llm.generate", side_effect=requests.RequestException("Connection error")):
+        result = explain_finding(finding, code)
+        assert isinstance(result, LLMExplanation)
+        assert "Package 'totallyfake' does not exist on PyPI registry." in result.explanation
+        assert result.suggested_fix == "Check spelling or remove"

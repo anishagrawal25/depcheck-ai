@@ -67,6 +67,7 @@ def explain_finding(finding: Finding, code: str) -> LLMExplanation:
     """
     Generate structured explanation and suggested fix for a finding.
     Validates JSON and retries once on invalid output.
+    If the call fails or JSON is invalid twice, falls back to rule-based reasons.
     """
     prompt = (
         f"You are a Python security expert analyzing dependency risks.\n\n"
@@ -81,7 +82,6 @@ def explain_finding(finding: Finding, code: str) -> LLMExplanation:
         f"Return ONLY a JSON object with keys 'explanation' (string) and 'suggested_fix' (string or null)."
     )
 
-    last_error = None
     for attempt in range(2):
         current_prompt = prompt if attempt == 0 else (
             f"{prompt}\n\nCRITICAL: Previous response was not valid JSON. "
@@ -92,7 +92,12 @@ def explain_finding(finding: Finding, code: str) -> LLMExplanation:
             cleaned = _clean_json_str(raw_text)
             data = json.loads(cleaned)
             return LLMExplanation(**data)
-        except (json.JSONDecodeError, ValidationError) as e:
-            last_error = e
+        except (json.JSONDecodeError, ValidationError):
+            continue
+        except Exception:
+            # Network failure, timeout, missing key, etc. break out to fallback
+            break
 
-    raise ValueError(f"Failed to produce valid LLMExplanation after retry: {last_error}")
+    # Fallback to rule-based reasons
+    fallback_text = "; ".join(finding.reasons) if finding.reasons else f"Flagged as {finding.verdict}."
+    return LLMExplanation(explanation=fallback_text, suggested_fix=finding.suggested_fix)
