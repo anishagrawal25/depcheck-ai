@@ -28,3 +28,9 @@ class ScanReport(BaseModel):
 class ScanRequest(BaseModel):
     code: str
 
+
+class LLMExplanation(BaseModel):
+    explanation: str
+    suggested_fix: Optional[str] = None
+
+

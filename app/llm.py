@@ -1,7 +1,10 @@
+import json
 import os
 from typing import Optional
+from pydantic import ValidationError
 import requests
 from app.config import GEMINI_API_KEY, REQUEST_TIMEOUT
+from app.schemas import Finding, LLMExplanation
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
@@ -45,3 +48,51 @@ def generate(prompt: str, timeout: Optional[int] = None) -> str:
     """Generate completion using Gemini client reading GEMINI_API_KEY with a timeout."""
     client = GeminiClient()
     return client.generate(prompt, timeout=timeout)
+
+
+def _clean_json_str(text: str) -> str:
+    """Strip markdown code formatting if present."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    return text
+
+
+def explain_finding(finding: Finding, code: str) -> LLMExplanation:
+    """
+    Generate structured explanation and suggested fix for a finding.
+    Validates JSON and retries once on invalid output.
+    """
+    prompt = (
+        f"You are a Python security expert analyzing dependency risks.\n\n"
+        f"Finding details:\n"
+        f"- Package: {finding.package}\n"
+        f"- Verdict: {finding.verdict}\n"
+        f"- Risk score: {finding.risk_score}\n"
+        f"- Reasons: {'; '.join(finding.reasons)}\n"
+        f"- Suggested fix: {finding.suggested_fix or 'None'}\n\n"
+        f"User code:\n```python\n{code}\n```\n\n"
+        f"Explain why this dependency is risky and suggest a fix.\n"
+        f"Return ONLY a JSON object with keys 'explanation' (string) and 'suggested_fix' (string or null)."
+    )
+
+    last_error = None
+    for attempt in range(2):
+        current_prompt = prompt if attempt == 0 else (
+            f"{prompt}\n\nCRITICAL: Previous response was not valid JSON. "
+            f"Respond ONLY with valid JSON with keys 'explanation' and 'suggested_fix'."
+        )
+        try:
+            raw_text = generate(current_prompt)
+            cleaned = _clean_json_str(raw_text)
+            data = json.loads(cleaned)
+            return LLMExplanation(**data)
+        except (json.JSONDecodeError, ValidationError) as e:
+            last_error = e
+
+    raise ValueError(f"Failed to produce valid LLMExplanation after retry: {last_error}")
