@@ -1,0 +1,24 @@
+{
+  "rule": {
+    "tp": 5,
+    "fp": 0,
+    "fn": 0,
+    "tn": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "false_positive_rate": 0.0,
+    "avg_latency": 0.7266
+  },
+  "agent": {
+    "tp": 5,
+    "fp": 0,
+    "fn": 0,
+    "tn": 3,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "false_positive_rate": 0.0,
+    "avg_latency": 0.0249
+  }
+}
