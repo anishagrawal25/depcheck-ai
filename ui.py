@@ -99,13 +99,15 @@ def render_results_table(findings):
 
 
 code = st.text_area("Enter Python code to scan", key="code_input", height=200)
+use_llm = st.checkbox("Enable LLM-enhanced analysis", value=False)
 
 if st.button("Scan"):
     if not code.strip():
         st.warning("Please enter some Python code to scan.")
     else:
         try:
-            response = requests.post(f"{API_URL}/scan", json={"code": code}, timeout=10)
+            params = {"use_llm": "true" if use_llm else "false"}
+            response = requests.post(f"{API_URL}/scan", params=params, json={"code": code}, timeout=15)
             if response.status_code == 200:
                 data = response.json()
                 render_results_table(data.get("findings", []))

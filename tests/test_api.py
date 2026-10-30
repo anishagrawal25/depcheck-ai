@@ -2,7 +2,7 @@ import time
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
-from app.schemas import PackageSignals
+from app.schemas import LLMExplanation, PackageSignals
 
 client = TestClient(app)
 
@@ -116,3 +116,40 @@ import fastjsonparserx
         assert findings["requests"]["verdict"] == "ok"
         assert findings["fastjsonparserx"]["verdict"] == "hallucinated"
         assert findings["fastjsonparserx"]["risk_score"] == 0.95
+
+
+def test_scan_use_llm_false_does_not_call_llm():
+    code_snippet = "import fastjsonparserx"
+    with patch("app.main.get_package_signals", return_value=PackageSignals(name="fastjsonparserx", exists=False)):
+        with patch("app.main.explain_finding") as mock_explain:
+            response = client.post("/scan", params={"use_llm": False}, json={"code": code_snippet})
+            assert response.status_code == 200
+            assert mock_explain.call_count == 0
+
+
+def test_scan_use_llm_true_calls_llm_only_for_non_ok():
+    code_snippet = """
+import requests
+import fastjsonparserx
+"""
+    def mock_signals(name: str):
+        if name == "requests":
+            return PackageSignals(name="requests", exists=True, age_days=1000, release_count=50, has_repo=True)
+        return PackageSignals(name=name, exists=False)
+
+    with patch("app.main.get_package_signals", side_effect=mock_signals):
+        with patch(
+            "app.main.explain_finding",
+            return_value=LLMExplanation(explanation="LLM explanation for fake pkg", suggested_fix="Remove it"),
+        ) as mock_explain:
+            response = client.post("/scan", params={"use_llm": True}, json={"code": code_snippet})
+            assert response.status_code == 200
+            # explain_finding must be called only for fastjsonparserx (non-ok), NOT for requests (ok)
+            assert mock_explain.call_count == 1
+            call_finding = mock_explain.call_args[0][0]
+            assert call_finding.package == "fastjsonparserx"
+
+            data = response.json()
+            findings = {f["package"]: f for f in data["findings"]}
+            assert findings["fastjsonparserx"]["reasons"] == ["LLM explanation for fake pkg"]
+            assert findings["fastjsonparserx"]["suggested_fix"] == "Remove it"
