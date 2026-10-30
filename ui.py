@@ -7,6 +7,37 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 st.set_page_config(page_title="depcheck-ai", layout="wide")
 st.title("depcheck-ai")
 
+EXAMPLES = {
+    "Clean": """import json
+import requests
+
+response = requests.get("https://api.github.com")
+print(response.status_code)
+""",
+    "Fake Package": """import requests
+import fastjsonparserx
+
+data = fastjsonparserx.parse('{"status": "ok"}')
+""",
+    "Typosquat": """import reqeusts
+import numpyy
+
+print(reqeusts.__name__)
+""",
+}
+
+if "code_input" not in st.session_state:
+    st.session_state["code_input"] = EXAMPLES["Clean"]
+
+
+def load_example(snippet: str):
+    st.session_state["code_input"] = snippet
+
+
+st.sidebar.header("Example Snippets")
+for label, snippet in EXAMPLES.items():
+    st.sidebar.button(f"Load {label}", on_click=load_example, args=(snippet,))
+
 
 def render_results_table(findings):
     if not findings:
@@ -67,7 +98,7 @@ def render_results_table(findings):
     st.markdown(table_html, unsafe_allow_html=True)
 
 
-code = st.text_area("Enter Python code to scan", height=200)
+code = st.text_area("Enter Python code to scan", key="code_input", height=200)
 
 if st.button("Scan"):
     if not code.strip():
