@@ -1,8 +1,9 @@
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Annotated, Any, Dict, List, Optional, Sequence, TypedDict
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import add_messages
 from app.agent.tools import ALL_TOOLS
 from app.schemas import Finding
 
@@ -44,8 +45,9 @@ class AgentState(TypedDict):
     code: str
     package: str
     tool_call_count: int
-    messages: List[BaseMessage]
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     final_finding: Optional[Finding]
+
 
 
 def create_agent_node(llm: Optional[Any] = None):
