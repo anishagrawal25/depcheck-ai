@@ -23,8 +23,18 @@ def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) 
             verdict="hallucinated",
             risk_score=0.95,
             confidence=0.95,
-            reasons=["Package does not exist on PyPI"],
+            reasons=[f"Package '{signals.name}' does not exist on the PyPI registry."],
             suggested_fix=suggested_fix,
+        )
+
+    # Unknown state (e.g. timeout / network error)
+    if signals.exists is None:
+        return Finding(
+            package=signals.name,
+            verdict="ok",
+            risk_score=0.0,
+            confidence=0.3,
+            reasons=["Package existence could not be verified due to network lookup issues."],
         )
 
     risk_score = 0.0
@@ -34,26 +44,34 @@ def score_package(signals: PackageSignals, similar: Optional[List[str]] = None) 
     # Rule: Age under 30 days
     if signals.age_days is not None and signals.age_days < 30:
         risk_score += WEIGHTS["age"]
-        reasons.append(f"Package is newly created ({signals.age_days} days old)")
+        reasons.append(
+            f"Package '{signals.name}' is newly published ({signals.age_days} days old, under 30-day threshold)."
+        )
 
     # Rule: Release count under 3
     if signals.release_count is not None and signals.release_count < 3:
         risk_score += WEIGHTS["releases"]
-        reasons.append(f"Low release count ({signals.release_count} releases)")
+        reasons.append(
+            f"Package '{signals.name}' has a low release count ({signals.release_count} release(s), fewer than 3)."
+        )
 
     # Rule: No repository link
     if signals.has_repo is False:
         risk_score += WEIGHTS["repo"]
-        reasons.append("No source repository link found in package metadata")
+        reasons.append(
+            f"No public source repository (GitHub or GitLab) was found in package metadata."
+        )
 
     # Rule: Typosquat similarity to popular packages
     if similar:
         risk_score += WEIGHTS["typosquat"]
-        reasons.append(f"Name is very similar to popular package(s): {', '.join(similar)}")
+        reasons.append(
+            f"Package name '{signals.name}' is highly similar to popular package(s): {', '.join(similar)}."
+        )
         suggested_fix = f"Did you mean '{similar[0]}'?"
 
     verdict = "suspicious" if risk_score >= 0.5 else "ok"
-    confidence = 0.85 if signals.exists is True else 0.5
+    confidence = 0.85
 
     return Finding(
         package=signals.name,

@@ -18,7 +18,7 @@ def test_score_package_hallucinated():
     assert finding.verdict == "hallucinated"
     assert finding.risk_score == 0.95
     assert finding.confidence >= 0.9
-    assert "Package does not exist on PyPI" in finding.reasons
+    assert finding.reasons == ["Package 'totally-fake-pkg-123' does not exist on the PyPI registry."]
 
 
 def test_score_package_age_under_30_days():
@@ -31,9 +31,9 @@ def test_score_package_age_under_30_days():
     )
     finding = score_package(signals, similar=[])
 
-    assert finding.verdict == "ok"  # 0.2 < 0.5
+    assert finding.verdict == "ok"
     assert finding.risk_score == 0.2
-    assert any("newly created" in r for r in finding.reasons)
+    assert "newly published (10 days old, under 30-day threshold)" in finding.reasons[0]
 
 
 def test_score_package_older_package_clean():
@@ -52,7 +52,6 @@ def test_score_package_older_package_clean():
 
 
 def test_score_package_suspicious_typosquat_and_no_repo():
-    # Typosquat (0.4) + No repo (0.2) = 0.6 >= 0.5 -> suspicious
     signals = PackageSignals(
         name="reqeusts",
         exists=True,
@@ -65,21 +64,22 @@ def test_score_package_suspicious_typosquat_and_no_repo():
     assert finding.verdict == "suspicious"
     assert finding.risk_score == 0.6
     assert finding.suggested_fix == "Did you mean 'requests'?"
-    assert any("requests" in r for r in finding.reasons)
-    assert any("No source repository" in r for r in finding.reasons)
+    assert any("highly similar to popular package(s): requests" in r for r in finding.reasons)
+    assert any("No public source repository" in r for r in finding.reasons)
 
 
-def test_score_package_low_releases_and_young_age():
-    # Releases < 3 (0.2) + Age < 30 (0.2) + No repo (0.2) = 0.6 >= 0.5 -> suspicious
+def test_score_package_human_readable_reasons_all():
     signals = PackageSignals(
-        name="shady-pkg",
+        name="bad-package",
         exists=True,
         age_days=5,
         release_count=1,
         has_repo=False,
     )
-    finding = score_package(signals, similar=[])
+    finding = score_package(signals, similar=["requests"])
 
-    assert finding.verdict == "suspicious"
-    assert finding.risk_score == 0.6
-    assert any("Low release count" in r for r in finding.reasons)
+    # Check each readable sentence
+    assert any("newly published (5 days old" in r for r in finding.reasons)
+    assert any("low release count (1 release(s)" in r for r in finding.reasons)
+    assert any("No public source repository" in r for r in finding.reasons)
+    assert any("highly similar to popular package(s): requests" in r for r in finding.reasons)
